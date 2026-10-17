@@ -1,0 +1,242 @@
+
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>JobTrack | 반도체 산업 뉴스</title>
+
+  <style>
+    * {
+      box-sizing: border-box;
+    }
+
+    body {
+      font-family: Arial, "Malgun Gothic", sans-serif;
+      background: #f5f6f8;
+      color: #222;
+      margin: 0;
+      padding: 32px 16px;
+    }
+
+    .container {
+      max-width: 900px;
+      margin: 0 auto;
+    }
+
+    h1 {
+      margin-bottom: 8px;
+    }
+
+    .description {
+      color: #666;
+      margin-bottom: 24px;
+    }
+
+    .toolbar {
+      display: flex;
+      gap: 12px;
+      margin-bottom: 16px;
+    }
+
+    input {
+      flex: 1;
+      min-width: 0;
+      padding: 12px;
+      border: 1px solid #ddd;
+      border-radius: 8px;
+      font-size: 15px;
+    }
+
+    .count {
+      color: #666;
+      font-size: 14px;
+      margin-bottom: 12px;
+    }
+
+    .article {
+      background: white;
+      border: 1px solid #e5e5e5;
+      border-radius: 10px;
+      padding: 20px;
+      margin-bottom: 12px;
+    }
+
+    .article a {
+      color: #222;
+      font-size: 16px;
+      font-weight: bold;
+      text-decoration: none;
+      line-height: 1.6;
+    }
+
+    .article a:hover {
+      color: #2563eb;
+      text-decoration: underline;
+    }
+
+    .date {
+      color: #777;
+      font-size: 13px;
+      margin-top: 10px;
+    }
+
+    .message {
+      text-align: center;
+      color: #777;
+      padding: 35px 10px;
+    }
+  </style>
+</head>
+
+<body>
+  <main class="container">
+    <h1>반도체 산업 뉴스</h1>
+    <p class="description">
+      Google 뉴스 RSS를 통해 자동 수집한 기사입니다.
+    </p>
+
+    <div class="toolbar">
+      <input
+        type="search"
+        id="searchInput"
+        placeholder="기사 제목 검색..."
+        aria-label="기사 제목 검색"
+      >
+    </div>
+
+    <div id="articleCount" class="count"></div>
+
+    <div id="newsContainer">
+      <p class="message">기사를 불러오는 중입니다...</p>
+    </div>
+  </main>
+
+  <script>
+    // 모든 기사 데이터를 보관하는 변수
+    let allNews = [];
+
+    const searchInput = document.getElementById("searchInput");
+    const newsContainer = document.getElementById("newsContainer");
+    const articleCount = document.getElementById("articleCount");
+
+    // 1. news.json 파일 가져오기
+    async function loadNews() {
+      try {
+        const response = await fetch("./news.json", {
+          cache: "no-store"
+        });
+
+        if (!response.ok) {
+          throw new Error("HTTP 오류: " + response.status);
+        }
+
+        const data = await response.json();
+
+        if (!Array.isArray(data)) {
+          throw new Error("JSON 데이터가 배열 형식이 아닙니다.");
+        }
+
+        allNews = data;
+
+        // 2. 발행 날짜 기준 최신순 정렬
+        allNews.sort((a, b) => {
+          const dateA = Date.parse(a.published) || 0;
+          const dateB = Date.parse(b.published) || 0;
+
+          return dateB - dateA;
+        });
+
+        renderNews(allNews);
+
+      } catch (error) {
+        console.error("뉴스 불러오기 실패:", error);
+
+        newsContainer.textContent =
+          "기사를 불러오지 못했습니다. news.json 파일과 배포 상태를 확인해 주세요.";
+
+        articleCount.textContent = "";
+      }
+    }
+
+    // 3. 날짜를 보기 쉽게 변환
+    function formatDate(dateString) {
+      const date = new Date(dateString);
+
+      if (Number.isNaN(date.getTime())) {
+        return "날짜 정보 없음";
+      }
+
+      return date.toLocaleString("ko-KR", {
+        year: "numeric",
+        month: "2-digit",
+        day: "2-digit",
+        hour: "2-digit",
+        minute: "2-digit"
+      });
+    }
+
+    // 4. 화면에 기사 목록 출력
+    function renderNews(news) {
+      newsContainer.replaceChildren();
+
+      articleCount.textContent =
+        `전체 ${allNews.length}개 중 ${news.length}개 기사 표시`;
+
+      if (news.length === 0) {
+        const message = document.createElement("p");
+        message.className = "message";
+        message.textContent = "검색 결과가 없습니다.";
+        newsContainer.appendChild(message);
+        return;
+      }
+
+      news.forEach(article => {
+        const articleBox = document.createElement("div");
+        articleBox.className = "article";
+
+        const titleLink = document.createElement("a");
+        titleLink.textContent = article.title || "제목 없음";
+        titleLink.target = "_blank";
+        titleLink.rel = "noopener noreferrer";
+
+        // http/https 링크만 허용
+        try {
+          const url = new URL(article.link);
+
+          if (url.protocol === "http:" || url.protocol === "https:") {
+            titleLink.href = url.href;
+          } else {
+            titleLink.removeAttribute("target");
+          }
+        } catch {
+          titleLink.removeAttribute("target");
+        }
+
+        const dateText = document.createElement("div");
+        dateText.className = "date";
+        dateText.textContent = formatDate(article.published);
+
+        articleBox.appendChild(titleLink);
+        articleBox.appendChild(dateText);
+        newsContainer.appendChild(articleBox);
+      });
+    }
+
+    // 5. 검색어에 따라 기사 필터링
+    searchInput.addEventListener("input", () => {
+      const keyword = searchInput.value.trim().toLowerCase();
+
+      const filteredNews = allNews.filter(article => {
+        const title = String(article.title || "").toLowerCase();
+        return title.includes(keyword);
+      });
+
+      renderNews(filteredNews);
+    });
+
+    // 페이지를 열면 뉴스 불러오기
+    loadNews();
+  </script>
+</body>
+</html>
